@@ -5,11 +5,10 @@
 #include <string>
 #include <sstream>
 #include <unordered_map>
-
 #include "exerciser.h"
-
 using namespace std;
 using namespace pqxx;
+
 
 // prototypes
 void createRelations(pqxx::connection & conn);
@@ -20,6 +19,7 @@ void parsePlayer(const string & name, connection & C);
 void parseTeam(const string & name, connection & C);
 void parseState(const string & name, connection & C);
 void parseColor(const string & name, connection & C);
+
 
 /**
  * Main entry
@@ -107,6 +107,7 @@ void droppingAll(connection & conn) {
     } 
 }
 
+
 /**
  * Create tables on start, including execute sqls in a transaction
  * @param conn connection with db
@@ -151,6 +152,7 @@ void createRelations(pqxx::connection & conn) {
     txn.exec(ssp.str());
     txn.commit();
 }
+
 
 /**
  * fill table specified by name with data from files also specified by name

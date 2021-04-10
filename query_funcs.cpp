@@ -1,5 +1,9 @@
 #include "query_funcs.h"
 
+/**
+ * find all single quotes in str and escape it by doubling it
+ * @param str string to inspect
+ */
 void escapeSingle(string & str) {
     string temp = str;
     size_t pos = 0;
@@ -11,6 +15,7 @@ void escapeSingle(string & str) {
         temp_pos += 2;
     }
 }
+
 
 void add_player(connection *C, int team_id, int jersey_num, string first_name, string last_name,
                 int mpg, int ppg, int rpg, int apg, double spg, double bpg) {
@@ -51,6 +56,15 @@ void add_color(connection *C, string name) {
     ntxn.exec(sql.str());
 }
 
+
+/**
+ * Helper function to find the results of certain attr in range between min and max
+ * @param txn transaction object
+ * @param use flag to indicate use or not
+ * @param min min of specified statistic
+ * @param max max of specified statistic
+ * @param attr specified statistic
+ */
 void query1Helper(work & txn, int use, int min, int max, string attr) {
     if (use) {
         stringstream sql;
