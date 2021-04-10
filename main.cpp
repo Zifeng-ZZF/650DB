@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <string>
 #include <sstream>
+#include <unordered_map>
 
 #include "exerciser.h"
 
@@ -12,18 +13,26 @@ using namespace pqxx;
 
 // prototypes
 void createRelations(pqxx::connection & conn);
-void fillTables(pqxx::connection & conn, const string & name);
+void fillTables(pqxx::connection & conn, unordered_map<string, string> & tbs);
 void droppingAll(connection & conn);
-void inputChecker(int argc, char *argv[]);
-
+void filesChecker(unordered_map<string, string> & tbs);
 void parsePlayer(const string & name, connection & C);
 void parseTeam(const string & name, connection & C);
 void parseState(const string & name, connection & C);
 void parseColor(const string & name, connection & C);
 
+/**
+ * Main entry
+ * @param argc num of arg
+ * @param argv array of args
+ */
 int main (int argc, char *argv[]) {
-
-    inputChecker(argc, argv);
+    unordered_map<string, string> tbs;
+    tbs["COLOR"] = "color.txt";
+    tbs["STATE"] = "state.txt";
+    tbs["TEAM"] = "team.txt";
+    tbs["PLAYER"] = "player.txt";
+    filesChecker(tbs);
 
     //Allocate & initialize a Postgres connection object
     connection *C;
@@ -51,49 +60,29 @@ int main (int argc, char *argv[]) {
 
     droppingAll(*C);
     createRelations(*C);
-    fillTables(*C, argv[1]);
-    fillTables(*C, argv[2]);
-    fillTables(*C, argv[3]);
-    fillTables(*C, argv[4]);
+    fillTables(*C, tbs);
 
-    // exercise(C);
+    exercise(C);
 
     // Close database connection
-    // C->disconnect();
+    C->disconnect();
     return 0;
 }
 
 
-void inputChecker(int argc, char *argv[]) {
-    bool all_good = true;
-    if (argc != 5) {
-        cerr << "Wrong number of source files. Require 4." << endl;
-        exit(1);
+/**
+ * check whether necessary files exist in the working directory
+ * @param tbs map of DB table name and input file name
+ */
+void filesChecker(unordered_map<string, string> & tbs) {
+    for (auto & item : tbs) {
+        ifstream ifs(item.second);
+        if (!ifs.good()) {
+            cerr << item.second << " not exist." << endl;
+            exit(1);
+        }
+        ifs.close();
     }
-    ifstream ifs1(argv[1]);
-    ifstream ifs2(argv[2]);
-    ifstream ifs3(argv[3]);
-    ifstream ifs4(argv[4]);
-    if (!ifs1.good()) {
-        cerr << argv[1] << " not exist." << endl;
-        all_good = false;
-    }
-    else if (!ifs2.good()) {
-        cerr << argv[2] << " not exist." << endl;
-        all_good = false;
-    }
-    else if (!ifs3.good()) {
-        cerr << argv[3] << " not exist." << endl;
-        all_good = false;
-    }
-    else if (!ifs4.good()) {
-        cerr << argv[4] << " not exist." << endl;
-        all_good = false;
-    }
-    ifs1.close();
-    ifs2.close();
-    ifs3.close();
-    ifs4.close();
 }
 
 
@@ -119,7 +108,7 @@ void droppingAll(connection & conn) {
 }
 
 /**
- * Create tables on start
+ * Create tables on start, including execute sqls in a transaction
  * @param conn connection with db
  */
 void createRelations(pqxx::connection & conn) {
@@ -143,7 +132,7 @@ void createRelations(pqxx::connection & conn) {
         << "\"STATE_ID\" integer references \"STATE\" not null,"
         << "\"COLOR_ID\" integer references \"COLOR\" not null,"
         << "\"WINS\" integer not null,"
-        << "\"LOSES\" integer not null )";
+        << "\"LOSSES\" integer not null )";
     txn.exec(sst.str());
 
     stringstream ssp;
@@ -157,8 +146,8 @@ void createRelations(pqxx::connection & conn) {
         << "\"PPG\" integer not null,"
         << "\"RPG\" integer not null,"
         << "\"APG\" integer not null,"
-        << "\"SPG\" integer not null,"
-        << "\"BPG\" integer not null )";
+        << "\"SPG\" double precision not null,"
+        << "\"BPG\" double precision not null )";
     txn.exec(ssp.str());
     txn.commit();
 }
@@ -168,31 +157,19 @@ void createRelations(pqxx::connection & conn) {
  * @param conn connection with db
  * @param name name of src file
  */
-void fillTables(pqxx::connection & conn, const string & name) {
-    cout << "The name : " << name << endl;
-    size_t dot_pos = name.find_first_of('.');
-    string tb_name = name.substr(0, dot_pos);
-    transform(tb_name.begin(), tb_name.end(), tb_name.begin(), ::toupper);
-    cout << "Tb name : " << tb_name << endl;
-    
-    if (tb_name == "PLAYER") {
-        parsePlayer(tb_name, conn);
-    }
-    else if (tb_name == "TEAM") {
-        parseTeam(tb_name, conn);
-    }
-    else if (tb_name == "STATE") {
-        parseState(tb_name, conn);
-    }
-    else if (tb_name == "COLOR") {
-        parseColor(tb_name, conn);
-    }
-    else {
-        cerr << "No such table, check your src files." << endl;
-        exit(1);
-    }
+void fillTables(pqxx::connection & conn, unordered_map<string, string> & tbs) {
+    parseColor(tbs["COLOR"], conn);
+    parseState(tbs["STATE"], conn);
+    parseTeam(tbs["TEAM"], conn);
+    parsePlayer(tbs["PLAYER"], conn);
 }
 
+
+/**
+ * parse player data input files and connect to DB then inserting the rows into DB
+ * @param name name of the input file
+ * @param C connection object
+ */
 void parsePlayer(const string & name, connection & C) {
     ifstream input(name);
     if (input.is_open()) {
@@ -206,11 +183,20 @@ void parsePlayer(const string & name, connection & C) {
             double spg, bpg;
             liness >> player_id >> team_id >> jersey_num >> first_name >> last_name 
                    >> mpg >> ppg >> rpg >> apg >> spg >> bpg;
+            // cout << "Inserting row: \n";
+            // cout << "(" << player_id << "," << team_id << "," << jersey_num << "," << first_name << "," << last_name 
+            //      << mpg << "," << ppg << "," << rpg << "," << apg << "," << spg << "," << bpg << ")" << endl;
             add_player(&C, team_id, jersey_num, first_name, last_name, mpg, ppg, rpg, apg, spg, bpg);
         }
     }
 }
 
+
+/**
+ * parse team data input files and connect to DB then inserting the rows into DB
+ * @param name name of the input file
+ * @param C connection object
+ */
 void parseTeam(const string & name, connection & C) {
     ifstream input(name);
     if (input.is_open()) {
@@ -226,6 +212,12 @@ void parseTeam(const string & name, connection & C) {
     }
 }
 
+
+/**
+ * parse state data input files and connect to DB then inserting the rows into DB
+ * @param name name of the input file
+ * @param C connection object
+ */
 void parseState(const string & name, connection & C) {
     ifstream input(name);
     if (input.is_open()) {
@@ -240,6 +232,12 @@ void parseState(const string & name, connection & C) {
     }
 }
 
+
+/**
+ * parse color data input files and connect to DB then inserting the rows into DB
+ * @param name name of the input file
+ * @param C connection object
+ */
 void parseColor(const string & name, connection & C) {
     ifstream input(name);
     if (input.is_open()) {
@@ -249,7 +247,7 @@ void parseColor(const string & name, connection & C) {
             int color_id;
             string name;
             liness >> color_id >> name;
-            add_state(&C, name);
+            add_color(&C, name);
         }
     }
 }
