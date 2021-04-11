@@ -160,7 +160,7 @@ void query4(connection *C, string team_state, string team_color) {
 
 
 void query5(connection *C, int num_wins) {
-    cout << "FIRST_NAME LAST_NAME TEAM.NAME WINS" << endl;
+    cout << "FIRST_NAME LAST_NAME NAME WINS" << endl;
     work txn(*C);
     stringstream sql;
     sql << "select \"FIRST_NAME\",\"LAST_NAME\",\"TEAM\".\"NAME\",\"WINS\" from \"PLAYER\",\"TEAM\"" 
