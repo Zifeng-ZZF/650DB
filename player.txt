@@ -5,7 +5,7 @@
 5 1 21 Nik Popovic 14 6 4 0 0.1 0.3
 6 1 2 Connar Tava 25 6 5 2 0.7 0.3
 7 1 15 Mo Jeffers 20 6 6 1 0.4 0.5
-8 1 13 Ty Graves 19 5 1 2 0.0 0.2
+8 1 13 Ty Graves L 5 1 2 0.0 0.2
 9 1 23 Mike Sagay 5 2 1 0 0.1 0.1
 10 1 5 Garland Owens 11 2 2 1 0.1 0.2
 11 1 12 Johncarlos Reyes 6 2 1 0 0.2 0.5

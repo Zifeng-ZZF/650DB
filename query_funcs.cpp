@@ -1,5 +1,5 @@
 #include "query_funcs.h"
-
+#include <iomanip>
 /**
  * find all single quotes in str and escape it by doubling it
  * @param str string to inspect
@@ -65,18 +65,29 @@ void add_color(connection *C, string name) {
  * @param max max of specified statistic
  * @param attr specified statistic
  */
-void query1Helper(work & txn, int use, int min, int max, string attr) {
+void query1Helper(int use, int min, int max, string attr, stringstream & sql, bool * done) {
     if (use) {
-        stringstream sql;
-        sql << "select * from \"PLAYER\" where \"" << attr << "\" between " << min << " and " << max << ";";
-        result R = txn.exec(sql.str());
-        /* List down all the records */
-        for (const pqxx::tuple & r : R) {
-            for (const field & f : r) {
-                cout << f.c_str() << " ";
-            }
-            cout << endl;
+        if (*done) {
+            sql << " and ";
         }
+        else {
+            sql << " where ";
+        }
+        sql << "(\"" << attr << "\" >= " << min << " and \"" << attr << "\" <= " << max << ")";
+        *done = true;
+    }
+}
+
+void query1Helper2(int use, double min, double max, string attr, stringstream & sql, bool * done) {
+    if (use) {
+        if (*done) {
+            sql << " and ";
+        }
+        else {
+            sql << " where ";
+        }
+        sql << "(\"" << attr << "\" >= " << min << " and \"" << attr << "\" <= " << max << ")";
+        *done = true;
     }
 }
 
@@ -88,38 +99,54 @@ void query1(connection *C,
             int use_spg, double min_spg, double max_spg,
             int use_bpg, double min_bpg, double max_bpg
             ) {
-    cout << "PLATER_ID TEAM_ID UNIFORM_NUM FIRST_NAME LAST_NAME MPG PPG RPG APG SPG BPG" << endl;
-    work txn(*C);
-    query1Helper(txn, use_mpg, min_mpg, max_mpg, "MPG");
-    query1Helper(txn, use_ppg, min_ppg, max_ppg, "PPG");
-    query1Helper(txn, use_rpg, min_rpg, max_rpg, "RPG");
-    query1Helper(txn, use_apg, min_apg, max_apg, "APG");
-    query1Helper(txn, use_spg, min_spg, max_spg, "SPG");
-    query1Helper(txn, use_bpg, min_bpg, max_bpg, "BPG");
-    txn.commit();
+    cout << "PLAYER_ID TEAM_ID UNIFORM_NUM FIRST_NAME LAST_NAME MPG PPG RPG APG SPG BPG" << endl;
+    stringstream sql;
+    sql << "select * from \"PLAYER\" ";
+    nontransaction txn(*C);
+    bool done = false;
+    query1Helper(use_mpg, min_mpg, max_mpg, "MPG", sql, &done);
+    query1Helper(use_ppg, min_ppg, max_ppg, "PPG", sql, &done);
+    query1Helper(use_rpg, min_rpg, max_rpg, "RPG", sql, &done);
+    query1Helper(use_apg, min_apg, max_apg, "APG", sql, &done);
+    query1Helper2(use_spg, min_spg, max_spg, "SPG", sql, &done);
+    query1Helper2(use_bpg, min_bpg, max_bpg, "BPG", sql, &done);
+    sql << ";";
+    // cout << sql.str() << endl;
+    result R = txn.exec(sql.str());
+    /* List down all the records */
+    for (auto const & r : R) {
+        cout << r[0].as<int>() << " ";
+        cout << r[1].as<int>() << " ";
+        cout << r[2].as<int>() << " ";
+        cout << r[3].as<string>() << " ";
+        cout << r[4].as<string>() << " ";
+        cout << r[5].as<int>() << " ";
+        cout << r[6].as<int>() << " ";
+        cout << r[7].as<int>() << " ";
+        cout << r[8].as<int>() << " ";
+        cout << fixed << setprecision(1);
+        cout << r[9].as<double>() << " ";
+        cout << r[10].as<double>() << endl;
+    }
 }
 
 
 void query2(connection *C, string team_color) {
     cout << "NAME" << endl;
-    work txn(*C);
+    nontransaction txn(*C);
     stringstream sql;
     sql << "select \"NAME\" from \"TEAM\" where \"COLOR_ID\" in (select \"COLOR_ID\" from  \"COLOR\" where \"NAME\"='" << team_color << "')";
     result R = txn.exec(sql.str());
     /* List down all the records */
     for (const pqxx::tuple & r : R) {
-        for (const field & f : r) {
-            cout << f.c_str() << " ";
-        }
-        cout << endl;
+        cout << r[0].as<string>() << endl;
     }
-    txn.commit();
 }
 
 
 void query3(connection *C, string team_name) {
     cout << "FIRST_NAME LAST_NAME" << endl;
-    work txn(*C);
+    nontransaction txn(*C);
     stringstream sql;
     sql << "select \"FIRST_NAME\",\"LAST_NAME\" from \"PLAYER\",\"TEAM\" where " 
         << "\"PLAYER\".\"TEAM_ID\"=\"TEAM\".\"TEAM_ID\" and " 
@@ -128,18 +155,15 @@ void query3(connection *C, string team_name) {
     result R = txn.exec(sql.str());
     /* List down all the records */
     for (const pqxx::tuple & r : R) {
-        for (const field & f : r) {
-            cout << f.c_str() << " ";
-        }
-        cout << endl;
+        cout << r[0].as<string>() << " ";
+        cout << r[1].as<string>() << endl;
     }
-    txn.commit();
 }
 
 
 void query4(connection *C, string team_state, string team_color) {
     cout << "FIRST_NAME LAST_NAME UNIFORM_NUM" << endl;
-    work txn(*C);
+    nontransaction txn(*C);
     stringstream sql;
     sql << "select \"FIRST_NAME\",\"LAST_NAME\",\"UNIFORM_NUM\""
 	    << "from \"PLAYER\" where \"TEAM_ID\" in ("
@@ -150,28 +174,25 @@ void query4(connection *C, string team_state, string team_color) {
     result R = txn.exec(sql.str());
     /* List down all the records */
     for (const pqxx::tuple & r : R) {
-        for (const field & f : r) {
-            cout << f.c_str() << " ";
-        }
-        cout << endl;
+        cout << r[0].as<string>() << " ";
+        cout << r[1].as<string>() << " ";
+        cout << r[2].as<int>() << endl;
     }
-    txn.commit();
 }
 
 
 void query5(connection *C, int num_wins) {
     cout << "FIRST_NAME LAST_NAME NAME WINS" << endl;
-    work txn(*C);
+    nontransaction txn(*C);
     stringstream sql;
     sql << "select \"FIRST_NAME\",\"LAST_NAME\",\"TEAM\".\"NAME\",\"WINS\" from \"PLAYER\",\"TEAM\"" 
         << "where \"PLAYER\".\"TEAM_ID\"=\"TEAM\".\"TEAM_ID\" and \"WINS\" > " << num_wins << ";";
     result R = txn.exec(sql.str());
     /* List down all the records */
     for (const pqxx::tuple & r : R) {
-        for (const field & f : r) {
-            cout << f.c_str() << " ";
-        }
-        cout << endl;
+        cout << r[0].as<string>() << " ";
+        cout << r[1].as<string>() << " ";
+        cout << r[2].as<string>() << " ";
+        cout << r[3].as<int>() << endl;
     }
-    txn.commit();
 }
